@@ -73,75 +73,72 @@ b3 = zeros(1, output_size);
 % Training parameters
 learning_rate = 0.01;
 epochs = 1000;
-batch_size = 1; % was 32
 
-% Training loop
+% Training loop (SGD)
 for epoch = 1:epochs
     % Shuffle training data
-    idx = randperm(size(X_train,1));
-    X_train = X_train(idx,:);
-    y_train = y_train(idx,:);
+    idx = randperm(size(X_train, 1));
+    X_train = X_train(idx, :);
+    y_train = y_train(idx, :);
     
-    % Mini-batch training
-    for i = 1:batch_size:size(X_train,1)
-        % Get current batch
-        batch_end = min(i + batch_size - 1, size(X_train,1));
-        batch_X = X_train(i:batch_end,:);
-        batch_y = y_train(i:batch_end,:);
+    % Iterate over each training example
+    for i = 1:size(X_train, 1)
+        % Select a single training example
+        batch_X = X_train(i, :); % 1x4 vector
+        batch_y = y_train(i, :); % 1x3 vector
         
         % Forward propagation
         % First hidden layer
-        z1 = batch_X * W1 + repmat(b1, size(batch_X,1), 1);
+        z1 = batch_X * W1 + b1; % 1x5 vector
         a1 = tanh(z1);
         % Second hidden layer
-        z2 = a1 * W2 + repmat(b2, size(a1,1), 1);
+        z2 = a1 * W2 + b2; % 1x3 vector
         a2 = tanh(z2);
         % Output layer
-        z3 = a2 * W3 + repmat(b3, size(a2,1), 1);
+        z3 = a2 * W3 + b3; % 1x3 vector
         a3 = tanh(z3);
         
         % Backpropagation
-        % Output layer
-        delta3 = (a3 - batch_y) .* (1 - a3.^2);
-        % Second hidden layer
-        delta2 = (delta3 * W3') .* (1 - a2.^2);
-        % First hidden layer
-        delta1 = (delta2 * W2') .* (1 - a1.^2);
+        % Output layer delta
+        delta3 = (a3 - batch_y) .* (1 - a3.^2); % 1x3 vector
+        % Second hidden layer delta
+        delta2 = (delta3 * W3') .* (1 - a2.^2); % 1x3 vector
+        % First hidden layer delta
+        delta1 = (delta2 * W2') .* (1 - a1.^2); % 1x5 vector
         
-        % Update weights and biases using mini-batch averages
-        batch_size_actual = size(batch_X,1);
-        W3 = W3 - learning_rate * (a2' * delta3) / batch_size_actual;
-        b3 = b3 - learning_rate * sum(delta3,1) / batch_size_actual;
-        W2 = W2 - learning_rate * (a1' * delta2) / batch_size_actual;
-        b2 = b2 - learning_rate * sum(delta2,1) / batch_size_actual;
-        W1 = W1 - learning_rate * (batch_X' * delta1) / batch_size_actual;
-        b1 = b1 - learning_rate * sum(delta1,1) / batch_size_actual;
+        % Update weights and biases
+        W3 = W3 - learning_rate * (a2' * delta3); % 3x3 matrix
+        b3 = b3 - learning_rate * delta3;         % 1x3 vector
+        W2 = W2 - learning_rate * (a1' * delta2); % 5x3 matrix
+        b2 = b2 - learning_rate * delta2;         % 1x3 vector
+        W1 = W1 - learning_rate * (batch_X' * delta1); % 4x5 matrix
+        b1 = b1 - learning_rate * delta1;             % 1x5 vector
     end
     
     % Calculate and print training accuracy every 100 epochs
     if mod(epoch, 100) == 0
         % Forward pass on training data
-        z1 = X_train * W1 + repmat(b1, size(X_train,1), 1);
+        z1 = X_train * W1 + repmat(b1, size(X_train, 1), 1);
         a1 = tanh(z1);
-        z2 = a1 * W2 + repmat(b2, size(a1,1), 1);
+        z2 = a1 * W2 + repmat(b2, size(a1, 1), 1);
         a2 = tanh(z2);
-        z3 = a2 * W3 + repmat(b3, size(a2,1), 1);
+        z3 = a2 * W3 + repmat(b3, size(a2, 1), 1);
         a3 = tanh(z3);
         [~, pred] = max(a3, [], 2);
         [~, true_labels] = max(y_train, [], 2);
         accuracy = mean(pred == true_labels);
-        fprintf('Epoch %d: Training Accuracy = %.2f%%\n', epoch, accuracy*100);
+        fprintf('Epoch %d: Training Accuracy = %.2f%%\n', epoch, accuracy * 100);
     end
 end
 
 % Validation
-z1 = X_val * W1 + repmat(b1, size(X_val,1), 1);
+z1 = X_val * W1 + repmat(b1, size(X_val, 1), 1);
 a1 = tanh(z1);
-z2 = a1 * W2 + repmat(b2, size(a1,1), 1);
+z2 = a1 * W2 + repmat(b2, size(a1, 1), 1);
 a2 = tanh(z2);
-z3 = a2 * W3 + repmat(b3, size(a2,1), 1);
+z3 = a2 * W3 + repmat(b3, size(a2, 1), 1);
 a3 = tanh(z3);
 [~, pred] = max(a3, [], 2);
 [~, true_labels] = max(y_val, [], 2);
 val_accuracy = mean(pred == true_labels);
-fprintf('Validation Accuracy: %.2f%%\n', val_accuracy*100);
+fprintf('Validation Accuracy: %.2f%%\n', val_accuracy * 100);
