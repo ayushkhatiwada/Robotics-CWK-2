@@ -50,7 +50,8 @@ X = X(idx,:);
 y = y(idx,:);
 
 % Split data
-split = floor(0.7 * n);
+trainRatio = 0.7;
+split = floor(trainRatio * n);
 X_train = X(1:split,:);
 y_train = y(1:split,:);
 X_val = X(split+1:end,:);

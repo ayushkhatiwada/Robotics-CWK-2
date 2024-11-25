@@ -87,7 +87,7 @@ m_b3 = zeros(size(b3)); v_b3 = zeros(size(b3));
 
 % Training parameters
 epochs = 1000;
-batch_size = 32;
+batch_size = 16;
 num_batches = floor(size(X_train, 1) / batch_size);
 
 % Storage for plotting
