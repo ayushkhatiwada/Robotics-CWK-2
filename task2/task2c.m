@@ -59,8 +59,8 @@ y_val = y(split+1:end,:);
 
 % Initialize network parameters with improved architecture
 input_size = 4;
-hidden1_size = 8;  % Increased from 5
-hidden2_size = 5;  % Increased from 3
+hidden1_size = 5;
+hidden2_size = 3;
 output_size = 3;
 
 % Initialize weights with Xavier initialization

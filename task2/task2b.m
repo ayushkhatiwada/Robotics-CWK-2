@@ -100,19 +100,19 @@ for epoch = 1:epochs
         
         % Backpropagation
         % Output layer delta
-        delta3 = (a3 - batch_y) .* (1 - a3.^2); % 1x3 vector
+        delta3 = (batch_y - a3) .* (1 - a3.^2); % 1x3 vector
         % Second hidden layer delta
         delta2 = (delta3 * W3') .* (1 - a2.^2); % 1x3 vector
         % First hidden layer delta
         delta1 = (delta2 * W2') .* (1 - a1.^2); % 1x5 vector
         
         % Update weights and biases
-        W3 = W3 - learning_rate * (a2' * delta3); % 3x3 matrix
-        b3 = b3 - learning_rate * delta3;         % 1x3 vector
-        W2 = W2 - learning_rate * (a1' * delta2); % 5x3 matrix
-        b2 = b2 - learning_rate * delta2;         % 1x3 vector
-        W1 = W1 - learning_rate * (batch_X' * delta1); % 4x5 matrix
-        b1 = b1 - learning_rate * delta1;             % 1x5 vector
+        W3 = W3 + learning_rate * (a2' * delta3); % 3x3 matrix
+        b3 = b3 + learning_rate * delta3;         % 1x3 vector
+        W2 = W2 + learning_rate * (a1' * delta2); % 5x3 matrix
+        b2 = b2 + learning_rate * delta2;         % 1x3 vector
+        W1 = W1 + learning_rate * (batch_X' * delta1); % 4x5 matrix
+        b1 = b1 + learning_rate * delta1;             % 1x5 vector
     end
     
     % Calculate and print training accuracy every 100 epochs
