@@ -6,8 +6,8 @@ function [X, y] = loadIrisData(filename)
     end
     
     % Initialize arrays
-    X = [];
-    y = [];
+    X = []; % Iris Data
+    y = []; % One-hot tanh encoding
     
     % Read line by line
     while ~feof(fid)
@@ -63,7 +63,7 @@ hidden1_size = 5;
 hidden2_size = 3;
 output_size = 3;
 
-% Initialize weights with Xavier initialization (https://www.pinecone.io/learn/weight-initialization/)
+% Initialize (W)eights and (b)iases with Xavier initialization (https://www.pinecone.io/learn/weight-initialization/)
 W1 = randn(input_size, hidden1_size) * sqrt(2/(input_size + hidden1_size));
 b1 = zeros(1, hidden1_size);
 W2 = randn(hidden1_size, hidden2_size) * sqrt(2/(hidden1_size + hidden2_size));
@@ -91,7 +91,7 @@ for epoch = 1:epochs
         % Forward propagation
         % First hidden layer
         z1 = batch_X * W1 + b1; % 1x5 vector
-        a1 = tanh(z1);
+        a1 = tanh(z1); %Xout(1)
         % Second hidden layer
         z2 = a1 * W2 + b2; % 1x3 vector
         a2 = tanh(z2);
