@@ -19,6 +19,7 @@ living_reward = -1;
 
 % Q-table initialization
 Q = zeros(num_states, num_actions);
+Q_prev = Q;
 
 % Action indices
 UP = 1;
@@ -72,7 +73,8 @@ for episode = 1:max_episodes
     
     for step = 1:max_steps
         % Choose action using epsilon-greedy policy
-        if rand() < epsilon
+        a = rand();
+        if a < epsilon
             action = randi(num_actions); % Random action
         else
             [~, action] = max(Q(state, :)); % Best action
@@ -92,7 +94,25 @@ for episode = 1:max_episodes
         if ismember(state, terminal_states)
             break;
         end
+
+        if episode <= 3
+            if step <= 3
+                disp("Episode: " + num2str(episode) + "Step: " + num2str(step));
+                disp("a: " + num2str(a));
+                disp("Action: " + num2str(action));
+                disp("Next State: " + num2str(next_state));
+                disp("Q table");
+                disp(Q);
+            end
+        end
     end
+
+    if Q == Q_prev
+        disp("Converged at episode " + num2str(episode));
+        break;
+    end
+
+    Q_prev = Q;
 
     epsilon = epsilon_start * exp(-lambda * episode); % Decay epsilon
 
