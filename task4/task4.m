@@ -97,7 +97,8 @@ for episode = 1:max_episodes
 
         if episode <= 3
             if step <= 3
-                disp("Episode: " + num2str(episode) + "Step: " + num2str(step));
+                disp("Episode: " + num2str(episode) + " Step: " + num2str(step));
+                disp("Current State: " + num2str(state));
                 disp("a: " + num2str(a));
                 disp("Action: " + num2str(action));
                 disp("Next State: " + num2str(next_state));
