@@ -22,10 +22,8 @@ Q = zeros(num_states, num_actions);
 Q_prev = Q;
 
 % Action indices
-UP = 1;
-RIGHT = 2;
-DOWN = 3;
-LEFT = 4;
+% UP = 1; RIGHT = 2; DOWN = 3; LEFT = 4;
+action_indices = ["UP"; "RIGHT"; "DOWN"; "LEFT"];
 
 % Function to determine next state and reward
 function [next_state, reward] = take_action(state, action, rewards, living_reward, obstacle)
@@ -88,6 +86,7 @@ for episode = 1:max_episodes
         Q(state, action) = Q(state, action) + alpha * (reward + gamma * best_next_action - Q(state, action));
 
         % Move to next state
+        current_state = state;
         state = next_state;
 
         % Check if terminal state is reached
@@ -98,9 +97,10 @@ for episode = 1:max_episodes
         if episode <= 3
             if step <= 3
                 disp("Episode: " + num2str(episode) + " Step: " + num2str(step));
-                disp("Current State: " + num2str(state));
+                disp("Current State: " + num2str(current_state));
                 disp("a: " + num2str(a));
-                disp("Action: " + num2str(action));
+                word_action =  action_indices{action, :};
+                disp("Action: " + num2str(word_action));
                 disp("Next State: " + num2str(next_state));
                 disp("Q table");
                 disp(Q);
@@ -129,18 +129,18 @@ end
 % Display results
 disp("Q-table");
 disp(Q);
-disp("Best actions:");
-disp(best_actions);
+% disp("Best actions:");
+% disp(best_actions);
 
 % Function to visualize the grid world and policy
-function visualize_policy(best_actions, obstacle)
+function visualize_policy(best_actions, obstacle, terminal_states)
     grid = ["9" "10" "11" "12"; "5" "6" "7" "8"; "1" "2" "3" "4"];  % Still a string array initially
     policy = ["↑" "→" "↓" "←"];
     
     for i = 1:3
         for j = 1:4
             state = (3-i)*4 + j;
-            if state == obstacle
+            if state == obstacle || ismember(state, terminal_states)
                 continue;
             end
             grid(i,j) = {strcat(num2str(grid{i,j}), " ", policy(best_actions(state)))}; % Key change here!
@@ -150,4 +150,4 @@ function visualize_policy(best_actions, obstacle)
 end
 
 % Visualize the learned policy
-visualize_policy(best_actions, obstacle);
+visualize_policy(best_actions, obstacle, terminal_states);
