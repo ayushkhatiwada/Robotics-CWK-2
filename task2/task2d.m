@@ -1,125 +1,269 @@
-function [X, y] = loadIrisData(filename)
-    % Read the raw data line by line
-    fid = fopen(filename, 'r');
-    if fid == -1
-        error('Could not open file %s', filename);
+%% ELEC0144 - Machine Learning for Robotics
+% Task 2: Classification
+% Part (d): Exploring Network Architectures and Activation Functions with MATLAB Toolbox
+
+%% Configuration Section (All hard-coded values here)
+% Dataset Parameters
+dataFilename = 'IrisData.txt';
+trainRatio = 0.7; % This will be varied in the experiment
+seed = 42; % Random seed for reproducibility
+
+% General Training Parameters
+maxEpochs = 100;
+performanceGoal = 1e-6; % Mean squared error goal
+
+%% Section 1: Data Loading and Preprocessing
+
+% Load Iris data from file (function defined below)
+[X, y] = loadIrisData(dataFilename);
+
+% Normalize features using z-score normalization
+X = (X - mean(X,1)) ./ std(X,0,1); %Corrected Normalization
+
+% Randomize data order
+rng(seed);
+n = size(X, 1); % Corrected to use the number of rows of X
+randomIdx = randperm(n);
+X = X(randomIdx, :);
+y = y(randomIdx, :);
+
+% Split data into training and validation sets
+splitPoint = floor(trainRatio * n);
+X_train = X(1:splitPoint, :);
+y_train = y(1:splitPoint, :);
+X_val = X(splitPoint + 1:end, :);
+y_val = y(splitPoint + 1:end, :);
+
+% Transpose data for the Neural Network Toolbox
+X_train = X_train';
+y_train = y_train';
+X_val = X_val';
+y_val = y_val';
+
+%% Section 2: Experiment Setup
+
+% Define network architectures and training parameters to explore
+% Each element in the cell array represents a different experiment
+architectures = {
+    % Original architecture (4-5-3-3) with tanh
+    {patternnet([5 3]), ...
+    {'trainFcn', 'traingdm', 'goal', performanceGoal, 'epochs', maxEpochs, 'showWindow', false}, ...
+    {'tansig', 'tansig', 'softmax'}, ...
+    'Original (4-5-3-3), Tanh'}, ...
+
+    % Smaller architecture (4-3-3) with ReLU
+    {patternnet(3), ...
+    {'trainFcn', 'traingdm', 'goal', performanceGoal, 'epochs', maxEpochs, 'showWindow', false}, ...
+    {'poslin', 'softmax'}, ...
+    'Smaller (4-3-3), ReLU'}, ...
+
+    % Larger architecture (4-10-5-3) with mixed activation functions
+    {patternnet([10 5]), ...
+    {'trainFcn', 'traingdm', 'goal', performanceGoal, 'epochs', maxEpochs, 'showWindow', false}, ...
+    {'poslin', 'tansig', 'softmax'}, ...
+    'Larger (4-10-5-3), Mixed'}, ...
+
+    % Deeper architecture (4-5-5-5-3) with tanh
+    {patternnet([5 5 5]), ...
+    {'trainFcn', 'traingdm', 'goal', performanceGoal, 'epochs', maxEpochs, 'showWindow', false}, ...
+    {'tansig', 'tansig', 'tansig', 'softmax'}, ...
+    'Deeper (4-5-5-5-3), Tanh'}, ...
+
+    % Architecture with more neurons in the first hidden layer (4-20-3) with ReLU
+    {patternnet([20 3]), ...
+    {'trainFcn', 'traingdm', 'goal', performanceGoal, 'epochs', maxEpochs, 'showWindow', false}, ...
+    {'poslin', 'poslin', 'softmax'}, ...
+    'Wider First Layer (4-20-3), ReLU'},...
+
+    % Deeper architecture (4-5-5-5-3) with trainscg
+    {patternnet([5 5 5]), ...
+    {'trainFcn', 'trainscg', 'goal', performanceGoal, 'epochs', maxEpochs, 'showWindow', false}, ...
+    {'tansig', 'tansig', 'tansig', 'softmax'}, ...
+    'Deeper (4-5-5-5-3), Tanh, trainscg'}, ...
+};
+
+numExperiments = length(architectures);
+
+%% Section 3: Training and Evaluation
+
+% Create a figure for plotting training performance
+figure('Position', [100, 100, 900, 600]);
+
+% Store validation accuracies for each experiment
+validationAccuracies = zeros(1, numExperiments);
+
+for i = 1:numExperiments
+    % Get network, training parameters, activation functions, and name
+    net = architectures{i}{1};
+    trainParams = architectures{i}{2};
+    activationFcns = architectures{i}{3};
+    experimentName = architectures{i}{4};
+
+    % Set training function
+    net.trainFcn = trainParams{2};
+
+    % Set other training parameters
+    for j = 3:2:length(trainParams)
+        paramName = trainParams{j};
+        paramValue = trainParams{j+1};
+        net.trainParam.(paramName) = paramValue;
     end
-    
-    % Initialize arrays
-    X = [];
-    y = [];
-    
-    % Read line by line
-    while ~feof(fid)
-        line = fgetl(fid);
-        if ischar(line) && ~isempty(line)
-            % Split the line by commas
-            parts = strsplit(line, ',');
-            % Convert first 4 values to numbers
-            features = str2double(parts(1:4))';
-            % Add to X matrix
-            X = [X features];
-            % Create one-hot encoding based on the class
-            if contains(parts{5}, 'setosa')
-                y = [y [1; 0; 0]];
-            elseif contains(parts{5}, 'versicolor')
-                y = [y [0; 1; 0]];
-            else % virginica
-                y = [y [0; 0; 1]];
-            end
+
+    % Set activation functions
+    for layer = 1:length(net.layers)
+        if layer <= length(activationFcns)
+            net.layers{layer}.transferFcn = activationFcns{layer};
         end
     end
-    fclose(fid);
+
+    % Configure and train the network
+    net = configure(net, X_train, y_train);
+    [net, tr] = train(net, X_train, y_train);
+
+    % Plot training performance (e.g., MSE)
+    subplot(2, ceil(numExperiments/2), i);
+    plot(tr.epoch, tr.perf, 'LineWidth', 2);
+    xlabel('Epoch');
+    ylabel('Performance (MSE)');
+    title(experimentName);
+
+    % Test the network on the validation set
+    y_pred = net(X_val);
+    validationAccuracy = mean(vec2ind(y_pred) == vec2ind(y_val));
+    fprintf('%s - Validation Accuracy: %.2f%%\n', experimentName, validationAccuracy * 100);
+    validationAccuracies(i) = validationAccuracy;
 end
-
-% Main script
-% Load and preprocess data
-[X, y] = loadIrisData('IrisData.txt');
-
-% Normalize features
-X = (X - mean(X, 2)) ./ std(X, 0, 2);
-
-% Randomize and split data
-rng(42); % For reproducibility
-n = size(X, 2);
-idx = randperm(n);
-X = X(:, idx);
-y = y(:, idx);
-
-trainRatio = 0.7;
-split = floor(trainRatio * n);
-X_train = X(:, 1:split);
-y_train = y(:, 1:split);
-X_val = X(:, split+1:end);
-y_val = y(:, split+1:end);
-
-% Create figure for plotting training progress
-figure('Position', [100, 100, 800, 600]);
-subplot(3,1,1);
-hold on;
-title('Training Performance');
-
-% 1. Original architecture (4-5-3-3) with tanh
-net1 = patternnet([5 3]);
-net1.layers{1}.transferFcn = 'tansig';
-net1.layers{2}.transferFcn = 'tansig';
-net1.layers{3}.transferFcn = 'softmax';
-net1.trainParam.showWindow = false;  % Disable default training window
-net1.trainParam.epochs = 100;        % Set maximum epochs
-net1 = configure(net1, X_train, y_train);
-
-% Custom training with progress tracking
-[net1, tr1] = train(net1, X_train, y_train);
-plot(tr1.epoch, tr1.perf, 'b-', 'LineWidth', 2);
-xlabel('Epoch');
-ylabel('MSE');
-title('Original Architecture Performance');
-
-% Test performance
-y_pred1 = net1(X_val);
-accuracy1 = mean(vec2ind(y_pred1) == vec2ind(y_val));
-fprintf('Original architecture accuracy: %.2f%%\n', accuracy1*100);
-
-% 2. Smaller architecture with ReLU
-subplot(3,1,2);
-hold on;
-net2 = patternnet(3);
-net2.layers{1}.transferFcn = 'poslin';
-net2.layers{2}.transferFcn = 'softmax';
-net2.trainParam.showWindow = false;
-net2.trainParam.epochs = 100;
-net2 = configure(net2, X_train, y_train);
-
-[net2, tr2] = train(net2, X_train, y_train);
-plot(tr2.epoch, tr2.perf, 'r-', 'LineWidth', 2);
-xlabel('Epoch');
-ylabel('MSE');
-title('Smaller Architecture Performance');
-
-y_pred2 = net2(X_val);
-accuracy2 = mean(vec2ind(y_pred2) == vec2ind(y_val));
-fprintf('Smaller architecture with ReLU accuracy: %.2f%%\n', accuracy2*100);
-
-% 3. Larger architecture with mixed activation functions
-subplot(3,1,3);
-hold on;
-net3 = patternnet([10 5]);
-net3.layers{1}.transferFcn = 'poslin';
-net3.layers{2}.transferFcn = 'tansig';
-net3.layers{3}.transferFcn = 'softmax';
-net3.trainParam.showWindow = false;
-net3.trainParam.epochs = 100;
-net3 = configure(net3, X_train, y_train);
-
-[net3, tr3] = train(net3, X_train, y_train);
-plot(tr3.epoch, tr3.perf, 'g-', 'LineWidth', 2);
-xlabel('Epoch');
-ylabel('MSE');
-title('Larger Architecture Performance');
-
-y_pred3 = net3(X_val);
-accuracy3 = mean(vec2ind(y_pred3) == vec2ind(y_val));
-fprintf('Larger architecture with mixed activations accuracy: %.2f%%\n', accuracy3*100);
 
 % Adjust figure layout
 sgtitle('Neural Network Training Performance Comparison');
+
+% Correctly extract experiment names from the cell array
+experimentNames = cell(1, numExperiments);
+for i = 1:numExperiments
+    experimentNames{i} = architectures{i}{4};
+end
+
+% Display validation accuracies in a table
+accuracyTable = table(experimentNames', validationAccuracies', 'VariableNames', {'Architecture', 'Validation Accuracy'});
+disp(accuracyTable);
+
+%% Section 4: Experiment with Varying trainRatio
+trainRatios = 0.5:0.1:0.9; % Test with train ratios from 0.5 to 0.9
+numRatios = length(trainRatios);
+
+% Store results for each train ratio and each architecture
+trainRatioResults = cell(numExperiments, numRatios);
+
+for i = 1:numExperiments
+    net = architectures{i}{1};
+    trainParams = architectures{i}{2};
+    activationFcns = architectures{i}{3};
+    experimentName = architectures{i}{4};
+    net.trainFcn = trainParams{2};
+    for j = 3:2:length(trainParams)
+        paramName = trainParams{j};
+        paramValue = trainParams{j+1};
+        net.trainParam.(paramName) = paramValue;
+    end
+    for layer = 1:length(net.layers)
+        if layer <= length(activationFcns)
+            net.layers{layer}.transferFcn = activationFcns{layer};
+        end
+    end
+
+    for r = 1:numRatios
+        currentTrainRatio = trainRatios(r);
+        
+        % Split data based on the current train ratio
+        splitPoint = floor(currentTrainRatio * n);
+        X_train = X(1:splitPoint, :);
+        y_train = y(1:splitPoint, :);
+        X_val = X(splitPoint + 1:end, :);
+        y_val = y(splitPoint + 1:end, :);
+
+        % Transpose data
+        X_train = X_train';
+        y_train = y_train';
+        X_val = X_val';
+        y_val = y_val';
+        
+        % Train the network
+        net = configure(net, X_train, y_train);
+        [net, tr] = train(net, X_train, y_train);
+
+        % Evaluate the network
+        y_train_pred = net(X_train);
+        y_val_pred = net(X_val);
+        
+        trainAccuracy = mean(vec2ind(y_train_pred) == vec2ind(y_train));
+        valAccuracy = mean(vec2ind(y_val_pred) == vec2ind(y_val));
+        trainLoss = tr.perf(end); % Get the final training loss
+        
+        % Store the results
+        trainRatioResults{i, r} = {trainAccuracy, valAccuracy, trainLoss};
+        
+        fprintf('Architecture: %s, Train Ratio: %.1f, Train Accuracy: %.2f%%, Validation Accuracy: %.2f%%, Loss: %.4f\n', ...
+                experimentName, currentTrainRatio, trainAccuracy * 100, valAccuracy * 100, trainLoss);
+    end
+end
+
+% Display results in a table for each architecture
+for i = 1:numExperiments
+    experimentName = architectures{i}{4};
+    fprintf('\nResults for %s:\n', experimentName);
+    
+    % Prepare data for table
+    ratioTable = table('Size', [numRatios 4], ...
+                       'VariableTypes', {'double', 'double', 'double', 'double'}, ...
+                       'VariableNames', {'Train Ratio', 'Train Accuracy', 'Validation Accuracy', 'Train Loss'});
+    
+    for r = 1:numRatios
+        ratioTable(r, :) = {trainRatios(r), trainRatioResults{i, r}{1}, trainRatioResults{i, r}{2}, trainRatioResults{i, r}{3}};
+    end
+    
+    disp(ratioTable);
+end
+
+%% Helper Function: loadIrisData
+% Loads Iris data from a file, converts class labels to one-hot encoded vectors.
+function [X, y] = loadIrisData(filename)
+    % Open the file
+    fileID = fopen(filename, 'r');
+    if fileID == -1
+        error('Could not open file %s', filename);
+    end
+
+    % Initialize data and label matrices
+    X = []; % Iris Data Features
+    y = []; % One-hot encoded labels
+
+    % Read the file line by line
+    while ~feof(fileID)
+        currentLine = fgetl(fileID);
+        if ischar(currentLine) && ~isempty(currentLine)
+            % Split the line by commas
+            lineParts = strsplit(currentLine, ',');
+
+            % Convert the first 4 parts to numerical features
+            irisFeatures = str2double(lineParts(1:4));
+
+            % Append features to the data matrix
+            X = [X; irisFeatures];
+
+            % Create one-hot encoded vector based on the class label
+            if contains(lineParts{5}, 'setosa')
+                oneHotLabel = [1; 0; 0]; % One-hot encoding
+            elseif contains(lineParts{5}, 'versicolor')
+                oneHotLabel = [0; 1; 0]; % One-hot encoding
+            else % virginica
+                oneHotLabel = [0; 0; 1]; % One-hot encoding
+            end
+
+            % Append the one-hot encoded label to the label matrix
+            y = [y; oneHotLabel];
+        end
+    end
+
+    % Close the file
+    fclose(fileID);
+end
