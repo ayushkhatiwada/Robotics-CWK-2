@@ -1,180 +1,255 @@
-%% ELEC0144 - Machine Learning for Robotics
-% Task 4: Tabular Q-Learning
+%% Configuration Section
 
-%% Configuration Section (All hard-coded values here)
+% Set random seed for reproducibility
+rng(42);
 
-% Q-learning parameters
-learningRate = 0.1;   % Alpha
-discountFactor = 0.9; % Gamma
-initialEpsilon = 0.9;
-epsilonDecayRate = 0.006;
-maxEpisodes = 1000;
-maxSteps = 100;
+% Hyperparameters struct for easy experimentation
+params = struct();
+params.learningRate = 0.1;       % Learning rate alpha
+params.discountFactor = 0.9;     % Discount factor gamma
+params.initialEpsilon = 1.0;      % Initial exploration rate epsilon
+params.minEpsilon = 0.1;         % Minimum exploration rate epsilon
+params.epsilonDecayRate = 0.9987; % Decay rate for epsilon
+params.maxEpisodes = 5000;       % Maximum number of episodes to train
+params.maxSteps = 50;            % Maximum steps per episode
+params.convergenceTolerance = 1e-6; % Tolerance for convergence check (Q-value change)
+params.convergenceEpisodes = 200;  % Number of consecutive episodes for convergence
 
-% Grid world definition
-numStates = 12;
-numActions = 4;
-obstacleState = 6;
-terminalStates = [8, 12];
-rewards = zeros(1, numStates);
-rewards(8) = -10;
-rewards(12) = 10;
-livingReward = -1;
+% Environment parameters
+env = struct();
+env.numStates = 12;          % Number of states in the grid world
+env.numActions = 4;         % Number of possible actions (Up, Right, Down, Left)
+env.obstacleState = 6;       % State number of the obstacle
+env.terminalStates = [8, 12]; % State numbers of terminal states (8: -10 reward, 12: +10 reward)
+env.rewards = ones(1, env.numStates) * -1; % Initialize rewards to -1 for all states (living reward)
+env.rewards(8) = -10;                     % Reward for entering terminal state 8
+env.rewards(12) = 10;                    % Reward for entering terminal state 12
 
-%% Section 1: Environment Setup
+% Define global ACTIONS struct for action names and indices for better readability
+ACTIONS = struct();
+ACTIONS.names = ["Up", "Right", "Down", "Left"];
+ACTIONS.UP = 1;
+ACTIONS.RIGHT = 2;
+ACTIONS.DOWN = 3;
+ACTIONS.LEFT = 4;
 
-% Action indices and labels for better readability
-actions = ["UP", "RIGHT", "DOWN", "LEFT"];
-actionIndex.UP = 1;
-actionIndex.RIGHT = 2;
-actionIndex.DOWN = 3;
-actionIndex.LEFT = 4;
+% Initialize Q-table with zeros.
+Q = zeros(env.numStates, env.numActions);
 
-% Q-table initialization
-Q = zeros(numStates, numActions);
+%% Helper Functions
 
-%% Section 2: Q-Learning Algorithm
+function action = selectAction(Q, state, epsilon)
+    % Implements epsilon-greedy action selection.
+    % With probability epsilon, choose a random action (exploration).
+    % Otherwise, choose the action with the highest Q-value for the current state (exploitation).
+    if rand() < epsilon
+        action = randi(size(Q, 2)); % Explore: Choose a random action
+    else
+        [max_vals, ~] = max(Q(state, :)); % Find the maximum Q-value for the current state
+        % Find all actions with max value in case of ties, and break ties randomly
+        best_actions = find(Q(state, :) == max_vals);
+        action = best_actions(randi(length(best_actions))); % Exploit: Choose the best action (tie-breaking)
+    end
+end
 
-% Function to determine next state and reward
-function [nextState, reward] = takeAction(state, action, rewards, livingReward, obstacleState, actionIndex)
+
+function [nextState, reward] = getNextState(currentState, action, rewards, obstacleState, actions)
+    % Determines the next state and reward based on the current state and action.
+    % Takes into account grid boundaries and the obstacle.
+    % Grid dimensions are fixed as 3 rows and 4 columns as per the problem description.
+    rows = 3;
+    cols = 4;
+
+    % Convert state number to row and column indices for easier grid manipulation.
+    row = ceil(currentState/cols); % Calculate row number
+    col = mod(currentState-1, cols) + 1; % Calculate column number
+
+    % Calculate next position based on the chosen action.
     switch action
-        case actionIndex.UP
-            nextState = state + 4;
-            if state >= 9 || nextState == obstacleState
-                nextState = state; % Stay in the same state
-            end
-        case actionIndex.RIGHT
-            nextState = state + 1;
-            if mod(state, 4) == 0 || nextState == obstacleState
-                nextState = state;
-            end
-        case actionIndex.DOWN
-            nextState = state - 4;
-            if state <= 4 || nextState == obstacleState
-                nextState = state;
-            end
-        case actionIndex.LEFT
-            nextState = state - 1;
-            if mod(state, 4) == 1 || nextState == obstacleState
-                nextState = state;
-            end
+        case actions.UP
+            row = row + 1;
+        case actions.RIGHT
+            col = col + 1;
+        case actions.DOWN
+            row = row - 1;
+        case actions.LEFT
+            col = col - 1;
     end
-    reward = rewards(nextState) + livingReward;
+
+    % Check for boundary conditions: if the agent tries to move out of the grid, it stays in the current state.
+    if row < 1 || row > rows || col < 1 || col > cols
+        nextState = currentState; % Stay in current state if action leads out of grid
+    else
+        nextState = (row-1)*cols + col; % Calculate next state number from row and column
+        if nextState == obstacleState
+            nextState = currentState; % Stay in current state if action leads to obstacle (cell 6)
+        end
+    end
+
+    % Get the reward associated with the next state.
+    reward = rewards(nextState);
 end
 
-% Q-learning algorithm
-epsilon = initialEpsilon;
-trainingLossHistory = []; % for storing the training loss of each episode
-convergence = false;
 
-for episode = 1:maxEpisodes
-    state = 1; % Start from state 1 in each episode
-    totalReward = 0; % to calculate loss
+function visualizeGridWorld(optimalPolicy, obstacleState, terminalStates)
+    % Displays the optimal policy on the grid world.
+    % Uses arrow symbols to represent actions and 'X' for obstacle, 'T' for terminal states.
+    symbols = ['↑', '→', '↓', '←']; % Symbols for Up, Right, Down, Left actions
 
-    for step = 1:maxSteps
-        % Choose action using epsilon-greedy policy
-        if rand() < epsilon
-            action = randi(numActions); % Explore: choose a random action
+    % Create a cell array to represent the grid for display.
+    grid = cell(3, 4);
+    for state = 1:12
+        row = ceil(state/4);
+        col = mod(state-1, 4) + 1;
+
+        if state == obstacleState
+            grid{row, col} = 'X'; % Mark obstacle cell with 'X'
+        elseif ismember(state, terminalStates)
+            grid{row, col} = sprintf('T%d', find(terminalStates == state)); % Mark terminal states as T1, T2.
         else
-            [~, action] = max(Q(state, :)); % Exploit: choose the best action based on Q-table
-        end
-
-        % Take action and observe the next state and reward
-        [nextState, reward] = takeAction(state, action, rewards, livingReward, obstacleState, actionIndex);
-
-        % Q-learning update rule
-        bestNextActionValue = max(Q(nextState, :));
-        Q(state, action) = Q(state, action) + learningRate * (reward + discountFactor * bestNextActionValue - Q(state, action));
-
-        % Update state and total reward
-        state = nextState;
-        totalReward = totalReward + reward;
-
-        % Check if the terminal state is reached
-        if ismember(state, terminalStates)
-            break;
-        end
-
-        % Print the first 3 iterations of the first 3 episodes
-        if episode <= 3
-            if step <= 3
-                disp("------------------------");
-                disp("Episode: " + num2str(episode) + ", Step: " + num2str(step));
-                fprintf('State: %d, Action: %s, Next State: %d, Reward: %.2f\n', ...
-                        state-4*(state>8)*(state~=12), actions(action), nextState-4*(nextState>8)*(nextState~=12), reward);
-                disp("Q-table (partially):");
-                disp(Q(max(1,state-4):min(numStates,state+4),:)); % only show a part of Q table for better format
-            end
+            grid{row, col} = symbols(optimalPolicy(state)); % Use action symbol for other states based on optimal policy
         end
     end
 
-    % Store the loss of this episode
-    trainingLossHistory = [trainingLossHistory totalReward];
-
-    % Epsilon decay
-    epsilon = initialEpsilon * exp(-epsilonDecayRate * episode);
-
-    % Check for convergence
-    if episode > 4
-        if abs(trainingLossHistory(episode) - trainingLossHistory(episode-1)) < 1e-4 && ...
-           abs(trainingLossHistory(episode-1) - trainingLossHistory(episode-2)) < 1e-4 && ...
-           abs(trainingLossHistory(episode-2) - trainingLossHistory(episode-3)) < 1e-4 && ...
-           abs(trainingLossHistory(episode-3) - trainingLossHistory(episode-4)) < 1e-4
-            disp("Converged at episode " + num2str(episode));
-            convergence = true;
-            break;
+    % Display the grid world policy in the command window.
+    disp('Grid World Policy:');
+    for row = 3:-1:1 % Iterate rows from top to bottom for display
+        for col = 1:4 % Iterate columns
+            fprintf('%2s ', grid{row, col}); % Print grid cell content with formatting
         end
+        fprintf('\n');
     end
 end
 
-%% Section 3: Results and Visualization
+%% Training Loop with Enhanced Monitoring
+episodeHistory = struct('states', {}, 'actions', {}, 'rewards', {}, ...
+    'steps', {}, 'epsilon', {}, 'maxQChange', {}, 'avgQValue', {}); % Structure to store episode-wise data for analysis
 
-% Determine the best action for each state
-[~, bestActions] = max(Q, [], 2);
+epsilon = params.initialEpsilon; % Initialize epsilon for exploration-exploitation balance
+previousQ = Q; % Store Q-table from the previous iteration to check for convergence
+convergenceCounter = 0; % Counter for consecutive episodes with small Q-value change
+converged = false; % Flag to indicate if training has converged
 
-% Display the Q-table
-disp("Q-table:");
-disp(Q);
+% Track Q-value statistics over episodes for monitoring training progress
+qValueStats = struct('mean', [], 'std', [], 'max', [], 'min', []);
 
-% Function to visualize the grid world and policy
-function visualizePolicy(bestActions, obstacleState, terminalStates)
-    gridSymbols = ["9" "10" "11" "12"; "5" "6" "7" "8"; "1" "2" "3" "4"];
-    policySymbols = ["↑", "→", "↓", "←"];
+fprintf('Starting Q-Learning Training...\n');
 
-    % Mark obstacle and terminal states
-    gridSymbols(obstacleState) = "X";
-    gridSymbols(terminalStates(1)) = "T1";
-    gridSymbols(terminalStates(2)) = "T2";
+for episode = 1:params.maxEpisodes
+    currentState = 1; % Start each episode from state 1
+    totalReward = 0; % Initialize total reward for the episode
+    stepCount = 0; % Initialize step count for the episode
+    episodeStates = currentState; % Record states visited in the episode
+    episodeActions = []; % Record actions taken in the episode
+    episodeRewards = []; % Record rewards received in the episode
 
-    % Create the policy grid
-    policyGrid = strings(3, 4);
-    for row = 1:3
-        for col = 1:4
-            state = (3 - row) * 4 + col;
-            if ismember(state, [obstacleState, terminalStates])
-                policyGrid(row, col) = gridSymbols(state);
-            else
-                policyGrid(row, col) = policySymbols(bestActions(state));
-            end
+    % Episode loop: runs until maximum steps per episode or terminal state is reached
+    for step = 1:params.maxSteps
+        stepCount = step;
+
+        % Select action using epsilon-greedy policy
+        action = selectAction(Q, currentState, epsilon);
+
+        % Take action and observe next state and reward
+        [nextState, reward] = getNextState(currentState, action, env.rewards, env.obstacleState, ACTIONS);
+
+        % Q-Learning Update Rule: Update Q-value for the (currentState, action) pair
+        nextMaxQ = max(Q(nextState, :)); % Estimate of optimal future value in next state
+        Q(currentState, action) = Q(currentState, action) + ...
+            params.learningRate * (reward + params.discountFactor * nextMaxQ - Q(currentState, action)); % Q-update formula
+
+        % Print iteration details for the first 3 episodes and first 3 steps for report explanation
+        if episode <= 3 && step <= 3
+            fprintf('\nEpisode: %d, Step: %d, State: %d, Action: %s, Next State: %d, Reward: %d\n', ...
+                episode, step, currentState, ACTIONS.names(action), nextState, reward);
+            fprintf('Q-table after update (State %d, Action %s):\n', currentState, ACTIONS.names(action));
+            disp(Q); % Display the entire Q-table to show updates after each of the first 9 steps
+        end
+
+        % Store trajectory of the episode for analysis
+        episodeStates = [episodeStates, nextState];
+        episodeActions = [episodeActions, action];
+        episodeRewards = [episodeRewards, reward];
+
+        currentState = nextState; % Move to the next state
+        totalReward = totalReward + reward; % Accumulate episode reward
+
+        if ismember(currentState, env.terminalStates) % Check if terminal state is reached
+            break; % End episode if terminal state is reached
         end
     end
 
-    % Display the policy grid
-    disp(policyGrid);
+    % Update epsilon for next episode - reduce exploration over time
+    epsilon = max(params.minEpsilon, ...
+        params.initialEpsilon * (params.epsilonDecayRate^episode)); % Exponential decay of epsilon, clamped at minEpsilon
+
+    % Store episode data for later analysis and plotting
+    episodeHistory(episode).states = episodeStates;
+    episodeHistory(episode).actions = episodeActions;
+    episodeHistory(episode).rewards = episodeRewards;
+    episodeHistory(episode).steps = stepCount;
+    episodeHistory(episode).epsilon = epsilon;
+
+    % Track Q-value statistics for convergence monitoring
+    qValueStats.mean(episode) = mean(Q(:));
+    qValueStats.std(episode) = std(Q(:));
+    qValueStats.max(episode) = max(Q(:));
+    qValueStats.min(episode) = min(Q(:));
+
+    % Convergence check: if Q-value changes are very small for several episodes, assume convergence
+    maxQChange = max(abs(Q - previousQ), [], 'all'); % Maximum absolute change in Q-values in this episode
+    episodeHistory(episode).maxQChange = maxQChange;
+    episodeHistory(episode).avgQValue = mean(Q(:));
+
+    if maxQChange < params.convergenceTolerance % Check if max Q-value change is below tolerance
+        convergenceCounter = convergenceCounter + 1; % Increment convergence counter
+        if convergenceCounter >= params.convergenceEpisodes % Check if converged for enough consecutive episodes
+            converged = true;
+            fprintf('Converged after %d episodes\n', episode);
+            break; % Break out of training loop if converged
+        end
+    else
+        convergenceCounter = 0; % Reset counter if not converged in this episode
+    end
+
+    previousQ = Q; % Update previous Q-table for convergence check in the next episode
 end
 
-% Visualize the learned policy
-visualizePolicy(bestActions, obstacleState, terminalStates);
+fprintf('\nTraining Finished with %d episodes.\n', episode);
 
-% Plot the training loss curve
-figure;
-plot(1:length(trainingLossHistory), trainingLossHistory);
-title('Training Loss Over Episodes');
-xlabel('Episode');
-ylabel('Total Reward (Loss)');
+%% Analysis and Visualization
+
+% Plot Q-value statistics over episodes to visualize training progress
+figure('Name', 'Q-value Statistics');
+subplot(2,2,1);
+plot(1:length(qValueStats.mean), qValueStats.mean);
+title('Mean Q-value Over Episodes');
+xlabel('Episode'); ylabel('Mean Q-value');
 grid on;
 
-% Display a message if the algorithm did not converge within maxEpisodes
-if ~convergence
-    disp("Did not converge within " + num2str(maxEpisodes) + " episodes.");
-end
+subplot(2,2,2);
+plot(1:length(qValueStats.std), qValueStats.std);
+title('Q-value Standard Deviation');
+xlabel('Episode'); ylabel('Std Dev');
+grid on;
+
+subplot(2,2,3);
+plot(1:length([episodeHistory.maxQChange]), [episodeHistory.maxQChange]);
+title('Max Q-value Change per Episode');
+xlabel('Episode'); ylabel('Max Change');
+grid on;
+
+subplot(2,2,4);
+plot([episodeHistory.epsilon]);
+title('Epsilon Decay');
+xlabel('Episode'); ylabel('Epsilon');
+grid on;
+
+% Visualize the optimal policy derived from the learned Q-values
+[~, optimalPolicy] = max(Q, [], 2); % Get the action with the highest Q-value for each state
+fprintf('\nOptimal Policy Visualization:\n');
+visualizeGridWorld(optimalPolicy, env.obstacleState, env.terminalStates); % Display policy on grid
+
+% Print the final learned Q-table to the command window
+fprintf('\nFinal Q-table:\n');
+disp(Q);

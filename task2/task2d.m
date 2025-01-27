@@ -1,11 +1,7 @@
-%% ELEC0144 - Machine Learning for Robotics
-% Task 2: Classification
-% Part (d): Exploring Network Architectures and Activation Functions with MATLAB Toolbox
-
-%% Configuration Section (All hard-coded values here)
+%% Configuration Section
 % Dataset Parameters
 dataFilename = 'IrisData.txt';
-trainRatio = 0.7; % This will be varied in the experiment
+trainRatio = 0.7;
 seed = 42; % Random seed for reproducibility
 
 % General Training Parameters
@@ -18,11 +14,11 @@ performanceGoal = 1e-6; % Mean squared error goal
 [X, y] = loadIrisData(dataFilename);
 
 % Normalize features using z-score normalization
-X = (X - mean(X,1)) ./ std(X,0,1); %Corrected Normalization
+X = (X - mean(X,1)) ./ std(X,0,1);
 
 % Randomize data order
 rng(seed);
-n = size(X, 1); % Corrected to use the number of rows of X
+n = size(X, 1);
 randomIdx = randperm(n);
 X = X(randomIdx, :);
 y = y(randomIdx, :);
