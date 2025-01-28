@@ -38,11 +38,13 @@ Q = zeros(env.numStates, env.numActions);
 
 %% Helper Functions
 
-function action = selectAction(Q, state, epsilon)
+function [alpha, action] = selectAction(Q, state, epsilon)
     % Implements epsilon-greedy action selection.
     % With probability epsilon, choose a random action (exploration).
     % Otherwise, choose the action with the highest Q-value for the current state (exploitation).
-    if rand() < epsilon
+
+    alpha = rand(); % Generate a random number from a uniform distribution [0, 1)
+    if alpha < epsilon
         action = randi(size(Q, 2)); % Explore: Choose a random action
     else
         [max_vals, ~] = max(Q(state, :)); % Find the maximum Q-value for the current state
@@ -148,7 +150,7 @@ for episode = 1:params.maxEpisodes
         stepCount = step;
 
         % Select action using epsilon-greedy policy
-        action = selectAction(Q, currentState, epsilon);
+        [alpha, action] = selectAction(Q, currentState, epsilon);
 
         % Take action and observe next state and reward
         [nextState, reward] = getNextState(currentState, action, env.rewards, env.obstacleState, ACTIONS);
@@ -160,8 +162,8 @@ for episode = 1:params.maxEpisodes
 
         % Print iteration details for the first 3 episodes and first 3 steps for report explanation
         if episode <= 3 && step <= 3
-            fprintf('\nEpisode: %d, Step: %d, State: %d, Action: %s, Next State: %d, Reward: %d\n', ...
-                episode, step, currentState, ACTIONS.names(action), nextState, reward);
+            fprintf('\nEpisode: %d, Step: %d, State: %d, Alpha: %d, Epsilon: %d, Action: %s, Next State: %d, Reward: %d\n', ...
+                episode, step, currentState, alpha, epsilon, ACTIONS.names(action), nextState, reward);
             fprintf('Q-table after update (State %d, Action %s):\n', currentState, ACTIONS.names(action));
             disp(Q); % Display the entire Q-table to show updates after each of the first 9 steps
         end
