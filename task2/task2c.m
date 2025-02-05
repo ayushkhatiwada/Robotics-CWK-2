@@ -180,10 +180,10 @@ for i = 1:length(experimentNames)
     if contains(expName, 'CompareSGD')
         optimizer_name = expResult.optimizer;
         figure(figure_adam_sgd_accuracy); 
-        plot(1:numEpochs, expResult.trainAccuracyHistory, 'DisplayName', upper(optimizer_name), 'LineStyle', getLineStyle(optimizer_name));
+        plot(1:numEpochs, expResult.trainAccuracyHistory, 'DisplayName', upper(optimizer_name));
         
         figure(figure_adam_sgd_loss); 
-        plot(1:numEpochs, expResult.trainLossHistory, 'DisplayName', upper(optimizer_name), 'LineStyle', getLineStyle(optimizer_name));
+        plot(1:numEpochs, expResult.trainLossHistory, 'DisplayName', upper(optimizer_name));
     end
 
     % 3. ADAM Batch Size Sensitivity Plots
