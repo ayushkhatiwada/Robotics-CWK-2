@@ -1,7 +1,7 @@
 %% Configuration Section
 
 % Set random seed for reproducibility
-rng(42);
+rng(11);
 
 % Hyperparameters struct for easy experimentation
 params = struct();
@@ -9,11 +9,11 @@ params.learningRate = 0.1;       % Learning rate alpha
 params.discountFactor = 0.9;     % Discount factor gamma
 params.initialEpsilon = 1.0;      % Initial exploration rate epsilon
 params.minEpsilon = 0.1;         % Minimum exploration rate epsilon
-params.epsilonDecayRate = 0.9987; % Decay rate for epsilon
+params.epsilonDecayRate = 0.9994; % Decay rate for epsilon
 params.maxEpisodes = 5000;       % Maximum number of episodes to train
 params.maxSteps = 50;            % Maximum steps per episode
 params.convergenceTolerance = 1e-6; % Tolerance for convergence check (Q-value change)
-params.convergenceEpisodes = 200;  % Number of consecutive episodes for convergence
+params.convergenceEpisodes = 500;  % Number of consecutive episodes for convergence
 
 % Environment parameters
 env = struct();
@@ -35,6 +35,12 @@ ACTIONS.LEFT = 4;
 
 % Initialize Q-table with zeros.
 Q = zeros(env.numStates, env.numActions);
+
+% --- Enhanced Plot Settings for Readability at Small Sizes ---
+set(0, 'DefaultAxesFontSize', 16);
+set(0, 'DefaultTextFontSize', 16);
+set(0, 'DefaultLineLineWidth', 2);
+% --------------------------------------------------------------
 
 %% Helper Functions
 
@@ -160,8 +166,12 @@ for episode = 1:params.maxEpisodes
         Q(currentState, action) = Q(currentState, action) + ...
             params.learningRate * (reward + params.discountFactor * nextMaxQ - Q(currentState, action)); % Q-update formula
 
-        % Print iteration details for the first 3 episodes and first 3 steps for report explanation
+        % Print iteration details for the first 3 episodes and first 3 steps for report explanation and the final step of episode 1 and 2 before the start of step 1 of episode 2 and 3
         if episode <= 3 && step <= 3
+            if step == 1
+                fprintf("Initial Q-table:\n");
+                disp(previousQ); % Display the entire Q-table to show updates after each of the first 9 steps
+            end
             fprintf('\nEpisode: %d, Step: %d, State: %d, Alpha: %d, Epsilon: %d, Action: %s, Next State: %d, Reward: %d\n', ...
                 episode, step, currentState, alpha, epsilon, ACTIONS.names(action), nextState, reward);
             fprintf('Q-table after update (State %d, Action %s):\n', currentState, ACTIONS.names(action));
@@ -222,26 +232,25 @@ fprintf('\nTraining Finished with %d episodes.\n', episode);
 %% Analysis and Visualization
 
 % Plot Q-value statistics over episodes to visualize training progress
-figure('Name', 'Q-value Statistics');
-subplot(2,2,1);
+figure('Name', 'Mean Q-value Over Episodes');
 plot(1:length(qValueStats.mean), qValueStats.mean);
 title('Mean Q-value Over Episodes');
 xlabel('Episode'); ylabel('Mean Q-value');
 grid on;
 
-subplot(2,2,2);
+figure('Name', 'Q-value Standard Deviation');
 plot(1:length(qValueStats.std), qValueStats.std);
 title('Q-value Standard Deviation');
 xlabel('Episode'); ylabel('Std Dev');
 grid on;
 
-subplot(2,2,3);
+figure('Name', 'Max Q-value Over Episodes');
 plot(1:length([episodeHistory.maxQChange]), [episodeHistory.maxQChange]);
 title('Max Q-value Change per Episode');
 xlabel('Episode'); ylabel('Max Change');
 grid on;
 
-subplot(2,2,4);
+figure('Name', 'Epsilon Decay');
 plot([episodeHistory.epsilon]);
 title('Epsilon Decay');
 xlabel('Episode'); ylabel('Epsilon');
